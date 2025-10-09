@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { customerApi } from '@/lib/api';
 import CustomerModal from '@/components/CustomerModal';
+import CustomerDeliveryHistory from '@/components/CustomerDeliveryHistory';
 import { Customer } from '@/types';
 
 export default function CustomersPage() {
@@ -16,6 +17,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | undefined>(undefined);
 
   const fetchCustomers = async () => {
@@ -49,8 +51,19 @@ export default function CustomersPage() {
     setIsModalOpen(true);
   };
 
+  const handleViewHistory = (customer: Customer, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click event
+    setSelectedCustomer(customer);
+    setIsHistoryModalOpen(true);
+  };
+
   const handleModalClose = () => {
     setIsModalOpen(false);
+    setSelectedCustomer(undefined);
+  };
+
+  const handleHistoryModalClose = () => {
+    setIsHistoryModalOpen(false);
     setSelectedCustomer(undefined);
   };
 
@@ -145,7 +158,7 @@ export default function CustomersPage() {
               )}
 
               {customer.contact && (
-                <div className="mb-2">
+                <div className="mb-3">
                   <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
                     <span className="mr-2">📞</span>
                     <span>{customer.contact}</span>
@@ -153,7 +166,17 @@ export default function CustomersPage() {
                 </div>
               )}
 
+              {/* Delivery History Button */}
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={(e) => handleViewHistory(customer, e)}
+                  className="btn-secondary btn-sm w-full"
+                >
+                  📊 View Delivery History
+                </button>
+              </div>
+
+              <div className="mt-2">
                 <p className="text-xs text-gray-500 dark:text-gray-500">
                   Added {new Date(customer.created_at).toLocaleDateString()}
                 </p>
@@ -209,6 +232,15 @@ export default function CustomersPage() {
           onClose={handleModalClose}
           onSave={handleCustomerSaved}
           existingCustomer={selectedCustomer}
+        />
+      )}
+
+      {/* Delivery History Modal */}
+      {isHistoryModalOpen && selectedCustomer && (
+        <CustomerDeliveryHistory
+          isOpen={isHistoryModalOpen}
+          onClose={handleHistoryModalClose}
+          customer={selectedCustomer}
         />
       )}
     </div>
