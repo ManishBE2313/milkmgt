@@ -41,7 +41,7 @@ export const userApi = {
   },
 };
 
-// Customer API calls (NEW)
+// Customer API calls
 export const customerApi = {
   getCustomers: async (username: string): Promise<Customer[]> => {
     const response = await api.get<ApiResponse<Customer[]>>(
@@ -90,7 +90,25 @@ export const customerApi = {
       throw new Error(response.data.error || 'Failed to delete customer');
     }
   },
+
+  // NEW: Get customer delivery history
+  getCustomerDeliveryHistory: async (
+    username: string,
+    customerId: number,
+    monthYear?: string
+  ): Promise<any> => {
+    const params = monthYear ? { month_year: monthYear } : {};
+    const response = await api.get<ApiResponse<any>>(
+      `/customers/${username}/${customerId}/history`,
+      { params }
+    );
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to fetch delivery history');
+    }
+    return response.data.data;
+  },
 };
+
 
 // Delivery API calls
 export const deliveryApi = {

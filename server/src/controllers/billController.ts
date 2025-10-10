@@ -4,6 +4,8 @@ import { ApiResponse } from '../types';
 
 interface BillData {
   customer_name: string;
+  customer_address: string | null;
+  customer_contact: string | null;
   period_start: string;
   period_end: string;
   deliveries: Array<{
@@ -59,45 +61,71 @@ export const generateBillData = async (
     console.log('User found:', user.id);
 
     // Build query based on customer filter
-    let deliveriesQuery = `
-      SELECT 
-        d.delivery_date,
-        d.quantity,
-        d.status,
-        d.rate_per_litre as delivery_rate,
-        c.name as customer_name,
-        c.rate_per_litre as customer_rate
-      FROM deliveries d
-      LEFT JOIN customers c ON d.customer_id = c.id
-      WHERE d.user_id = $1 
-        AND d.delivery_date >= $2 
-        AND d.delivery_date <= $3
-    `;
+    let deliveriesQuery: string;
+    let queryParams: any[];
 
-    const queryParams: any[] = [user.id, period_start, period_end];
-
-    // Add customer filter if specified
     if (customer_id && customer_id !== 'all') {
-      deliveriesQuery += ` AND d.customer_id = $4`;
-      queryParams.push(customer_id);
+      // Query for specific customer
+      deliveriesQuery = `
+        SELECT 
+          d.delivery_date,
+          d.quantity,
+          d.status,
+          d.rate_per_litre as delivery_rate,
+          c.name as customer_name,
+          c.rate_per_litre as customer_rate,
+          c.address as customer_address,
+          c.contact as customer_contact
+        FROM deliveries d
+        INNER JOIN customers c ON d.customer_id = c.id
+        WHERE d.user_id = $1 
+          AND d.customer_id = $2
+          AND d.delivery_date >= $3 
+          AND d.delivery_date <= $4
+        ORDER BY d.delivery_date ASC
+      `;
+      queryParams = [user.id, customer_id, period_start, period_end];
       console.log('Filtering by customer_id:', customer_id);
     } else {
+      // Query for all customers
+      deliveriesQuery = `
+        SELECT 
+          d.delivery_date,
+          d.quantity,
+          d.status,
+          d.rate_per_litre as delivery_rate,
+          c.name as customer_name,
+          c.rate_per_litre as customer_rate,
+          c.address as customer_address,
+          c.contact as customer_contact
+        FROM deliveries d
+        LEFT JOIN customers c ON d.customer_id = c.id
+        WHERE d.user_id = $1 
+          AND d.delivery_date >= $2 
+          AND d.delivery_date <= $3
+        ORDER BY d.delivery_date ASC
+      `;
+      queryParams = [user.id, period_start, period_end];
       console.log('Fetching all customers');
     }
-
-    deliveriesQuery += ` ORDER BY d.delivery_date ASC`;
 
     console.log('Executing query with params:', queryParams);
     const deliveriesResult = await query(deliveriesQuery, queryParams);
     console.log('Deliveries found:', deliveriesResult.rows.length);
 
-    // Get customer name if specific customer selected
+    // Get customer info if specific customer selected
     let customerName = 'All Customers';
+    let customerAddress = null;
+    let customerContact = null;
+
     if (customer_id && customer_id !== 'all') {
-      const customerQuery = `SELECT name FROM customers WHERE id = $1`;
+      const customerQuery = `SELECT name, address, contact FROM customers WHERE id = $1`;
       const customerResult = await query(customerQuery, [customer_id]);
       if (customerResult.rows.length > 0) {
         customerName = customerResult.rows[0].name;
+        customerAddress = customerResult.rows[0].address;
+        customerContact = customerResult.rows[0].contact;
+        console.log('Customer found:', customerName);
       }
     }
 
@@ -166,6 +194,8 @@ export const generateBillData = async (
 
     const billData: BillData = {
       customer_name: customerName,
+      customer_address: customerAddress,
+      customer_contact: customerContact,
       period_start: period_start as string,
       period_end: period_end as string,
       deliveries,

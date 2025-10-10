@@ -5,6 +5,7 @@ import {
   updateCustomer,
   deleteCustomer,
 } from '../controllers/customerController';
+import { getCustomerDeliveryHistory } from '../controllers/customerDeliveryController';
 
 const router = express.Router();
 
@@ -19,5 +20,8 @@ router.put('/:username/:customerId', updateCustomer);
 
 // DELETE /api/customers/:username/:customerId - Delete customer
 router.delete('/:username/:customerId', deleteCustomer);
+
+// GET /api/customers/:username/:customerId/history - Get customer delivery history
+router.get('/:username/:customerId/history', getCustomerDeliveryHistory);
 
 export default router;
