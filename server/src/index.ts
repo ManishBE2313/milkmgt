@@ -17,6 +17,20 @@ dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
+let bootPromise: Promise<void> | null = null;
+
+const ensureBootstrapped = async (): Promise<void> => {
+  if (!bootPromise) {
+    bootPromise = (async () => {
+      await verifyConnection();
+      await runMigrations();
+    })().catch((err) => {
+      bootPromise = null;
+      throw err;
+    });
+  }
+  await bootPromise;
+};
 
 const allowedOrigins = [
   process.env.CLIENT_URL || 'http://localhost:3000',
@@ -51,6 +65,15 @@ app.use(
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  try {
+    await ensureBootstrapped();
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
@@ -96,8 +119,7 @@ app.use(errorHandler);
 
 const startServer = async () => {
   try {
-    await verifyConnection();
-    await runMigrations();
+    await ensureBootstrapped();
 
     app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
