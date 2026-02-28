@@ -2,7 +2,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { verifyConnection } from './db/pool';
-import { runMigrations } from './db/migrations';
+import { createTables } from './db/init';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 
 import authRoutes from './routes/authRoutes';
@@ -23,7 +23,7 @@ const ensureBootstrapped = async (): Promise<void> => {
   if (!bootPromise) {
     bootPromise = (async () => {
       await verifyConnection();
-      await runMigrations();
+      await createTables();
     })().catch((err) => {
       bootPromise = null;
       throw err;
