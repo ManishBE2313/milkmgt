@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useStore } from '@/store/useStore';
 import { customerApi } from '@/lib/api';
-import { Customer } from '@/types';
+import { Customer, CustomerDeliveryHistory as CustomerDeliveryHistoryType } from '@/types';
 import { getCurrentMonthYear, getPreviousMonth, getMonthName } from '@/utils/dateUtils';
 
 interface CustomerDeliveryHistoryProps {
@@ -17,9 +16,8 @@ export default function CustomerDeliveryHistory({
   onClose,
   customer,
 }: CustomerDeliveryHistoryProps) {
-  const user = useStore((state) => state.user);
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthYear());
-  const [historyData, setHistoryData] = useState<any>(null);
+  const [historyData, setHistoryData] = useState<CustomerDeliveryHistoryType | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -37,17 +35,11 @@ export default function CustomerDeliveryHistory({
   const monthOptions = getMonthOptions();
 
   const fetchHistory = async () => {
-    if (!user) return;
-
     setLoading(true);
     setError('');
 
     try {
-      const data = await customerApi.getCustomerDeliveryHistory(
-        user.username,
-        customer.id,
-        selectedMonth
-      );
+      const data = await customerApi.getCustomerDeliveryHistory(customer.id, selectedMonth);
       setHistoryData(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch delivery history');
@@ -175,7 +167,7 @@ export default function CustomerDeliveryHistory({
                         </tr>
                       </thead>
                       <tbody>
-                        {historyData.deliveries.map((delivery: any, index: number) => (
+                        {historyData.deliveries.map((delivery, index: number) => (
                           <tr key={index}>
                             <td>{new Date(delivery.date).toLocaleDateString('en-IN')}</td>
                             <td>

@@ -11,6 +11,17 @@ export interface CreateUserInput {
   username: string;
   fullname: string;
   address: string;
+  password: string;
+}
+
+export interface LoginInput {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
 }
 
 // Customer related types (NEW)
@@ -44,6 +55,7 @@ export interface Delivery {
   id: number;
   user_id: number;
   customer_id: number | null;
+  customer_name?: string;
   delivery_date: string;
   quantity: number;
   status: DeliveryStatus;

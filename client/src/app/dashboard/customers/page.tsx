@@ -27,11 +27,10 @@ export default function CustomersPage() {
     setError('');
 
     try {
-      const data = await customerApi.getCustomers(user.username);
+      const data = await customerApi.getCustomers();
       setCustomers(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch customers');
-      console.error('Error fetching customers:', err);
     } finally {
       setLoading(false);
     }
@@ -52,7 +51,7 @@ export default function CustomersPage() {
   };
 
   const handleViewHistory = (customer: Customer, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click event
+    e.stopPropagation();
     setSelectedCustomer(customer);
     setIsHistoryModalOpen(true);
   };
@@ -82,46 +81,36 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-          👥 Customer Management
-        </h1>
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="btn-secondary"
-        >
-          ← Back
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-primary-600">Client Directory</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Customer Management</h1>
+        </div>
+        <button onClick={() => router.push('/dashboard')} className="btn-secondary">
+          Back to Dashboard
         </button>
       </div>
 
-      {/* Error Message */}
       {error && (
-        <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg">
+        <div className="rounded-2xl bg-red-100/70 dark:bg-red-900/60 text-red-700 dark:text-red-200 px-4 py-3">
           {error}
         </div>
       )}
 
-      {/* Add Customer Button */}
       <div className="card">
-        <button
-          onClick={handleAddCustomer}
-          className="btn-primary w-full sm:w-auto"
-        >
-          ➕ Add New Customer
+        <button onClick={handleAddCustomer} className="btn-primary w-full sm:w-auto">
+          Add New Customer
         </button>
       </div>
 
-      {/* Customers List */}
       {customers.length === 0 ? (
         <div className="card">
           <div className="text-center py-12">
-            <div className="text-6xl mb-4">👥</div>
             <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
               No Customers Yet
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Add your first customer to start tracking deliveries with custom rates.
+              Add your first customer to start tracking customer-specific deliveries and billing.
             </p>
             <button onClick={handleAddCustomer} className="btn-primary">
               Add First Customer
@@ -142,37 +131,31 @@ export default function CustomersPage() {
                     {customer.name}
                   </h3>
                   <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                    ₹{Number(customer.rate_per_litre).toFixed(2)}/L
+                    Rs {Number(customer.rate_per_litre).toFixed(2)}/L
                   </p>
                 </div>
-                <div className="text-4xl">👤</div>
               </div>
 
               {customer.address && (
                 <div className="mb-2">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 flex items-start">
-                    <span className="mr-2">📍</span>
-                    <span className="line-clamp-2">{customer.address}</span>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                    {customer.address}
                   </p>
                 </div>
               )}
 
               {customer.contact && (
                 <div className="mb-3">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
-                    <span className="mr-2">📞</span>
-                    <span>{customer.contact}</span>
-                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{customer.contact}</p>
                 </div>
               )}
 
-              {/* Delivery History Button */}
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                 <button
                   onClick={(e) => handleViewHistory(customer, e)}
                   className="btn-secondary btn-sm w-full"
                 >
-                  📊 View Delivery History
+                  View Delivery History
                 </button>
               </div>
 
@@ -186,46 +169,41 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Summary Stats */}
       {customers.length > 0 && (
-        <div className="card bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800">
+        <div className="card">
           <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
-            📊 Customer Summary
+            Customer Summary
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Total Customers</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {customers.length}
-              </p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{customers.length}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Avg Rate</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Average Rate</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ₹
+                Rs{' '}
                 {(
-                  customers.reduce((sum, c) => sum + Number(c.rate_per_litre), 0) /
-                  customers.length
+                  customers.reduce((sum, c) => sum + Number(c.rate_per_litre), 0) / customers.length
                 ).toFixed(2)}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Lowest Rate</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ₹{Math.min(...customers.map((c) => Number(c.rate_per_litre))).toFixed(2)}
+                Rs {Math.min(...customers.map((c) => Number(c.rate_per_litre))).toFixed(2)}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Highest Rate</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ₹{Math.max(...customers.map((c) => Number(c.rate_per_litre))).toFixed(2)}
+                Rs {Math.max(...customers.map((c) => Number(c.rate_per_litre))).toFixed(2)}
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Customer Modal */}
       {isModalOpen && (
         <CustomerModal
           isOpen={isModalOpen}
@@ -235,7 +213,6 @@ export default function CustomersPage() {
         />
       )}
 
-      {/* Delivery History Modal */}
       {isHistoryModalOpen && selectedCustomer && (
         <CustomerDeliveryHistory
           isOpen={isHistoryModalOpen}

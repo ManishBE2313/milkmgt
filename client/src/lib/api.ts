@@ -2,6 +2,8 @@ import axios from 'axios';
 import {
   User,
   CreateUserInput,
+  LoginInput,
+  AuthResponse,
   Customer,
   CreateCustomerInput,
   UpdateCustomerInput,
@@ -11,6 +13,7 @@ import {
   AnalyticsData,
   ExportData,
   ApiResponse,
+  CustomerDeliveryHistory,
 } from '../types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -22,45 +25,53 @@ const api = axios.create({
   },
 });
 
-// User API calls
-export const userApi = {
-  createOrGetUser: async (userData: CreateUserInput): Promise<User> => {
-    const response = await api.post<ApiResponse<User>>('/user', userData);
+export const setAuthToken = (token: string | null): void => {
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common.Authorization;
+  }
+};
+
+export const authApi = {
+  register: async (userData: CreateUserInput): Promise<AuthResponse> => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/register', userData);
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error || 'Failed to create/get user');
+      throw new Error(response.data.error || 'Failed to register');
     }
     return response.data.data;
   },
 
-  getUserByUsername: async (username: string): Promise<User> => {
-    const response = await api.get<ApiResponse<User>>(`/user/${username}`);
+  login: async (loginData: LoginInput): Promise<AuthResponse> => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', loginData);
     if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error || 'User not found');
+      throw new Error(response.data.error || 'Failed to login');
     }
     return response.data.data;
   },
 };
 
-// Customer API calls
+export const userApi = {
+  getMe: async (): Promise<User> => {
+    const response = await api.get<ApiResponse<User>>('/user/me');
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch user profile');
+    }
+    return response.data.data;
+  },
+};
+
 export const customerApi = {
-  getCustomers: async (username: string): Promise<Customer[]> => {
-    const response = await api.get<ApiResponse<Customer[]>>(
-      `/customers/${username}`
-    );
+  getCustomers: async (): Promise<Customer[]> => {
+    const response = await api.get<ApiResponse<Customer[]>>('/customers');
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to fetch customers');
     }
     return response.data.data || [];
   },
 
-  createCustomer: async (
-    username: string,
-    customerData: CreateCustomerInput
-  ): Promise<Customer> => {
-    const response = await api.post<ApiResponse<Customer>>(
-      `/customers/${username}`,
-      customerData
-    );
+  createCustomer: async (customerData: CreateCustomerInput): Promise<Customer> => {
+    const response = await api.post<ApiResponse<Customer>>('/customers', customerData);
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to create customer');
     }
@@ -68,12 +79,11 @@ export const customerApi = {
   },
 
   updateCustomer: async (
-    username: string,
     customerId: number,
     customerData: UpdateCustomerInput
   ): Promise<Customer> => {
     const response = await api.put<ApiResponse<Customer>>(
-      `/customers/${username}/${customerId}`,
+      `/customers/${customerId}`,
       customerData
     );
     if (!response.data.success || !response.data.data) {
@@ -82,108 +92,75 @@ export const customerApi = {
     return response.data.data;
   },
 
-  deleteCustomer: async (username: string, customerId: number): Promise<void> => {
-    const response = await api.delete<ApiResponse>(
-      `/customers/${username}/${customerId}`
-    );
+  deleteCustomer: async (customerId: number): Promise<void> => {
+    const response = await api.delete<ApiResponse>(`/customers/${customerId}`);
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to delete customer');
     }
   },
 
-  // NEW: Get customer delivery history
   getCustomerDeliveryHistory: async (
-    username: string,
     customerId: number,
     monthYear?: string
-  ): Promise<any> => {
+  ): Promise<CustomerDeliveryHistory> => {
     const params = monthYear ? { month_year: monthYear } : {};
-    const response = await api.get<ApiResponse<any>>(
-      `/customers/${username}/${customerId}/history`,
+    const response = await api.get<ApiResponse<CustomerDeliveryHistory>>(
+      `/customers/${customerId}/history`,
       { params }
     );
-    if (!response.data.success) {
+    if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch delivery history');
     }
     return response.data.data;
   },
 };
 
-
-// Delivery API calls
 export const deliveryApi = {
-  getDeliveries: async (
-    username: string,
-    monthYear?: string
-  ): Promise<Delivery[]> => {
+  getDeliveries: async (monthYear?: string): Promise<Delivery[]> => {
     const params = monthYear ? { month_year: monthYear } : {};
-    const response = await api.get<ApiResponse<Delivery[]>>(
-      `/deliveries/${username}`,
-      { params }
-    );
+    const response = await api.get<ApiResponse<Delivery[]>>('/deliveries', { params });
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to fetch deliveries');
     }
     return response.data.data || [];
   },
 
-  createOrUpdateDelivery: async (
-    username: string,
-    deliveryData: CreateDeliveryInput
-  ): Promise<Delivery> => {
-    const response = await api.post<ApiResponse<Delivery>>(
-      `/deliveries/${username}`,
-      deliveryData
-    );
+  createOrUpdateDelivery: async (deliveryData: CreateDeliveryInput): Promise<Delivery> => {
+    const response = await api.post<ApiResponse<Delivery>>('/deliveries', deliveryData);
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to save delivery');
     }
     return response.data.data;
   },
 
-  deleteDelivery: async (username: string, date: string): Promise<void> => {
-    const response = await api.delete<ApiResponse>(
-      `/deliveries/${username}/${date}`
-    );
+  deleteDelivery: async (id: number): Promise<void> => {
+    const response = await api.delete<ApiResponse>(`/deliveries/${id}`);
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to delete delivery');
     }
   },
 };
 
-// Summary API calls
 export const summaryApi = {
-  getMonthlySummary: async (
-    username: string,
-    monthYear: string
-  ): Promise<MonthlySummary> => {
-    const response = await api.get<ApiResponse<MonthlySummary>>(
-      `/summary/${username}/${monthYear}`
-    );
+  getMonthlySummary: async (monthYear: string): Promise<MonthlySummary> => {
+    const response = await api.get<ApiResponse<MonthlySummary>>(`/summary/${monthYear}`);
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch summary');
     }
     return response.data.data;
   },
 
-  updateMonthlyRate: async (
-    username: string,
-    monthYear: string,
-    ratePerLitre: number
-  ): Promise<void> => {
-    const response = await api.put<ApiResponse>(
-      `/summary/${username}/${monthYear}/rate`,
-      { rate_per_litre: ratePerLitre }
-    );
+  updateMonthlyRate: async (monthYear: string, ratePerLitre: number): Promise<void> => {
+    const response = await api.put<ApiResponse>(`/summary/${monthYear}/rate`, {
+      rate_per_litre: ratePerLitre,
+    });
     if (!response.data.success) {
       throw new Error(response.data.error || 'Failed to update rate');
     }
   },
 
-  getAnalyticsReport: async (username: string): Promise<AnalyticsData> => {
-    const response = await api.get<ApiResponse<AnalyticsData>>(
-      `/report/${username}`
-    );
+  getAnalyticsReport: async (): Promise<AnalyticsData> => {
+    const response = await api.get<ApiResponse<AnalyticsData>>('/summary/report');
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to fetch analytics');
     }
@@ -191,43 +168,37 @@ export const summaryApi = {
   },
 };
 
-// Export/Import API calls
 export const exportApi = {
-  exportAsJSON: async (username: string): Promise<ExportData> => {
-    const response = await api.get<ApiResponse<ExportData>>(
-      `/export/${username}/json`
-    );
+  exportAsJSON: async (): Promise<ExportData> => {
+    const response = await api.get<ApiResponse<ExportData>>('/export/json');
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to export data');
     }
     return response.data.data;
   },
 
-  exportAsCSV: async (username: string): Promise<Blob> => {
-    const response = await api.get(`/export/${username}/csv`, {
-      responseType: 'blob',
-    });
+  exportAsCSV: async (): Promise<Blob> => {
+    const response = await api.get('/export/csv', { responseType: 'blob' });
     return response.data;
   },
 
-  importFromJSON: async (
-    username: string,
-    data: { deliveries: CreateDeliveryInput[]; customers?: CreateCustomerInput[] }
-  ): Promise<{ imported: number; updated: number; errors: number }> => {
-    const response = await api.post<ApiResponse<any>>(
-      `/import/${username}`,
+  importFromJSON: async (data: {
+    deliveries: CreateDeliveryInput[];
+    customers?: CreateCustomerInput[];
+  }): Promise<{ imported: number; updated: number; errors: number }> => {
+    const response = await api.post<ApiResponse<{ imported: number; updated: number; errors: number }>>(
+      '/export/import',
       data
     );
-    if (!response.data.success) {
+    if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to import data');
     }
     return response.data.data;
   },
 };
-// Bill API calls (NEW)
+
 export const billApi = {
   generateBillData: async (
-    username: string,
     customerId: string | number,
     periodStart: string,
     periodEnd: string
@@ -237,11 +208,8 @@ export const billApi = {
       period_start: periodStart,
       period_end: periodEnd,
     };
-    const response = await api.get<ApiResponse<any>>(
-      `/bill/${username}`,
-      { params }
-    );
-    if (!response.data.success) {
+    const response = await api.get<ApiResponse<any>>('/bill', { params });
+    if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Failed to generate bill');
     }
     return response.data.data;

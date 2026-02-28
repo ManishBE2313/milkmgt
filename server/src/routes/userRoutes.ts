@@ -1,12 +1,9 @@
 import { Router } from 'express';
-import { createOrGetUser, getUserByUsername } from '../controllers/userController';
+import { getMe } from '../controllers/userController';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
-// POST /api/user - Create or get existing user
-router.post('/', createOrGetUser);
-
-// GET /api/user/:username - Get user by username
-router.get('/:username', getUserByUsername);
+router.get('/me', requireAuth, getMe);
 
 export default router;

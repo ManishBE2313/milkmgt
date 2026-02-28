@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 import { deliveryApi, customerApi } from '@/lib/api';
 import { Delivery, DeliveryStatus, CreateDeliveryInput } from '@/types';
-import { formatDate, formatDisplayDate } from '@/utils/dateUtils';
+import { formatDate } from '@/utils/dateUtils';
 
 interface DeliveryModalProps {
   isOpen: boolean;
@@ -39,12 +39,14 @@ export default function DeliveryModal({
   const [error, setError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
+  const getMonthYearFromDate = (dateString: string): string => dateString.slice(0, 7);
+
   // Fetch customers on mount
   useEffect(() => {
     const fetchCustomers = async () => {
       if (!user) return;
       try {
-        const data = await customerApi.getCustomers(user.username);
+        const data = await customerApi.getCustomers();
         setCustomers(data);
       } catch (err) {
         console.error('Error fetching customers:', err);
@@ -71,12 +73,30 @@ export default function DeliveryModal({
         delivery_date: selectedDate,
         quantity: 0,
         status: 'delivered',
-        month_year: currentMonth,
+        month_year: getMonthYearFromDate(selectedDate),
+        customer_id: undefined,
+        rate_per_litre: undefined,
+      });
+    } else {
+      const today = formatDate(new Date());
+      setFormData({
+        delivery_date: today,
+        quantity: 0,
+        status: 'delivered',
+        month_year: getMonthYearFromDate(today),
         customer_id: undefined,
         rate_per_litre: undefined,
       });
     }
   }, [existingDelivery, selectedDate, currentMonth]);
+
+  const handleDateChange = (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      delivery_date: value,
+      month_year: getMonthYearFromDate(value),
+    }));
+  };
 
   // Auto-fill rate when customer is selected
   const handleCustomerChange = (customerId: string) => {
@@ -103,7 +123,7 @@ export default function DeliveryModal({
     setLoading(true);
 
     try {
-      await deliveryApi.createOrUpdateDelivery(user.username, formData);
+      await deliveryApi.createOrUpdateDelivery(formData);
       onSave();
     } catch (err: any) {
       setError(err.message || 'Failed to save delivery');
@@ -120,7 +140,7 @@ export default function DeliveryModal({
     setError('');
 
     try {
-      await deliveryApi.deleteDelivery(user.username, existingDelivery.delivery_date);
+      await deliveryApi.deleteDelivery(existingDelivery.id);
       onSave();
     } catch (err: any) {
       setError(err.message || 'Failed to delete delivery');
@@ -151,12 +171,22 @@ export default function DeliveryModal({
                 {existingDelivery ? 'Edit Delivery' : 'Add Delivery'}
               </h3>
 
-              {/* Date Display */}
+              {/* Date */}
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">Date</label>
-                <div className="input bg-gray-100 dark:bg-gray-700">
-                  {formatDisplayDate(formData.delivery_date)}
-                </div>
+                {existingDelivery ? (
+                  <div className="input bg-gray-100 dark:bg-gray-700">
+                    {formData.delivery_date}
+                  </div>
+                ) : (
+                  <input
+                    type="date"
+                    value={formData.delivery_date}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    className="input"
+                    required
+                  />
+                )}
               </div>
 
               {/* Customer Selection - NEW */}

@@ -37,8 +37,7 @@ export default function AnalyticsPage() {
       setError('');
 
       try {
-        console.log('Fetching analytics for user:', user.username);
-        const data = await summaryApi.getAnalyticsReport(user.username);
+        const data = await summaryApi.getAnalyticsReport();
         console.log('Analytics data received:', data);
         setAnalytics(data);
       } catch (err: any) {

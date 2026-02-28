@@ -15,9 +15,7 @@ interface BillData {
     amount: number;
     status: string;
   }>;
-  absent_days: Array<{
-    date: string;
-  }>;
+  absent_days: Array<{ date: string }>;
   summary: {
     total_litres: number;
     total_delivered_days: number;
@@ -27,47 +25,36 @@ interface BillData {
   };
 }
 
-export const generateBillData = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const generateBillData = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username } = req.params;
-    const { customer_id, period_start, period_end } = req.query;
-
-    console.log('Bill generation params:', { username, customer_id, period_start, period_end });
-
-    if (!period_start || !period_end) {
-      res.status(400).json({
-        success: false,
-        error: 'Period start and end dates are required'
-      } as ApiResponse);
+    const userId = req.authUser?.userId;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' } as ApiResponse);
       return;
     }
 
-    // Get user_id
-    const userQuery = `SELECT id, fullname, address FROM users WHERE username = $1`;
-    const userResult = await query(userQuery, [username]);
+    const { customer_id, period_start, period_end } = req.query as {
+      customer_id?: string;
+      period_start: string;
+      period_end: string;
+    };
+
+    const userResult = await query<{ fullname: string; address: string }>(
+      `SELECT fullname, address FROM users WHERE id = $1`,
+      [userId]
+    );
 
     if (userResult.rows.length === 0) {
-      res.status(404).json({
-        success: false,
-        error: 'User not found'
-      } as ApiResponse);
+      res.status(404).json({ success: false, error: 'User not found' } as ApiResponse);
       return;
     }
 
-    const user = userResult.rows[0];
-    console.log('User found:', user.id);
-
-    // Build query based on customer filter
     let deliveriesQuery: string;
-    let queryParams: any[];
+    let params: any[];
 
     if (customer_id && customer_id !== 'all') {
-      // Query for specific customer
       deliveriesQuery = `
-        SELECT 
+        SELECT
           d.delivery_date,
           d.quantity,
           d.status,
@@ -78,18 +65,13 @@ export const generateBillData = async (
           c.contact as customer_contact
         FROM deliveries d
         INNER JOIN customers c ON d.customer_id = c.id
-        WHERE d.user_id = $1 
-          AND d.customer_id = $2
-          AND d.delivery_date >= $3 
-          AND d.delivery_date <= $4
-        ORDER BY d.delivery_date ASC
-      `;
-      queryParams = [user.id, customer_id, period_start, period_end];
-      console.log('Filtering by customer_id:', customer_id);
+        WHERE d.user_id = $1 AND d.customer_id = $2
+          AND d.delivery_date BETWEEN $3 AND $4
+        ORDER BY d.delivery_date ASC`;
+      params = [userId, Number(customer_id), period_start, period_end];
     } else {
-      // Query for all customers
       deliveriesQuery = `
-        SELECT 
+        SELECT
           d.delivery_date,
           d.quantity,
           d.status,
@@ -100,38 +82,31 @@ export const generateBillData = async (
           c.contact as customer_contact
         FROM deliveries d
         LEFT JOIN customers c ON d.customer_id = c.id
-        WHERE d.user_id = $1 
-          AND d.delivery_date >= $2 
-          AND d.delivery_date <= $3
-        ORDER BY d.delivery_date ASC
-      `;
-      queryParams = [user.id, period_start, period_end];
-      console.log('Fetching all customers');
+        WHERE d.user_id = $1 AND d.delivery_date BETWEEN $2 AND $3
+        ORDER BY d.delivery_date ASC`;
+      params = [userId, period_start, period_end];
     }
 
-    console.log('Executing query with params:', queryParams);
-    const deliveriesResult = await query(deliveriesQuery, queryParams);
-    console.log('Deliveries found:', deliveriesResult.rows.length);
+    const deliveriesResult = await query(deliveriesQuery, params);
 
-    // Get customer info if specific customer selected
     let customerName = 'All Customers';
-    let customerAddress = null;
-    let customerContact = null;
+    let customerAddress: string | null = null;
+    let customerContact: string | null = null;
 
     if (customer_id && customer_id !== 'all') {
-      const customerQuery = `SELECT name, address, contact FROM customers WHERE id = $1`;
-      const customerResult = await query(customerQuery, [customer_id]);
+      const customerResult = await query<{ name: string; address: string | null; contact: string | null }>(
+        `SELECT name, address, contact FROM customers WHERE id = $1 AND user_id = $2`,
+        [Number(customer_id), userId]
+      );
       if (customerResult.rows.length > 0) {
         customerName = customerResult.rows[0].name;
         customerAddress = customerResult.rows[0].address;
         customerContact = customerResult.rows[0].contact;
-        console.log('Customer found:', customerName);
       }
     }
 
-    // Process deliveries
-    const deliveries: any[] = [];
-    const absentDays: any[] = [];
+    const deliveries: BillData['deliveries'] = [];
+    const absentDays: BillData['absent_days'] = [];
     let totalLitres = 0;
     let totalAmount = 0;
     let deliveredDays = 0;
@@ -139,65 +114,43 @@ export const generateBillData = async (
     let rateSum = 0;
     let rateCount = 0;
 
-    console.log('Processing deliveries...');
-
     deliveriesResult.rows.forEach((row: any) => {
-      console.log('Processing row:', {
-        date: row.delivery_date,
-        status: row.status,
-        quantity: row.quantity,
-        delivery_rate: row.delivery_rate,
-        customer_rate: row.customer_rate
-      });
-
       if (row.status === 'delivered') {
-        // Determine rate: use delivery rate if set, else customer rate, else 0
-        const rate = row.delivery_rate 
-          ? parseFloat(row.delivery_rate) 
-          : (row.customer_rate ? parseFloat(row.customer_rate) : 0);
-        
+        const rate = row.delivery_rate
+          ? parseFloat(row.delivery_rate)
+          : row.customer_rate
+            ? parseFloat(row.customer_rate)
+            : 0;
         const quantity = parseFloat(row.quantity || 0);
         const amount = quantity * rate;
 
-        console.log('Delivered:', { quantity, rate, amount });
-        
         deliveries.push({
           date: row.delivery_date,
-          quantity: quantity,
-          rate: rate,
-          amount: amount,
-          status: row.status
+          quantity,
+          rate,
+          amount,
+          status: row.status,
         });
 
         totalLitres += quantity;
         totalAmount += amount;
         deliveredDays++;
-        
         if (rate > 0) {
           rateSum += rate;
           rateCount++;
         }
       } else if (row.status === 'absent') {
-        absentDays.push({
-          date: row.delivery_date
-        });
+        absentDays.push({ date: row.delivery_date });
         absentDaysCount++;
       }
-    });
-
-    console.log('Summary calculated:', {
-      totalLitres,
-      totalAmount,
-      deliveredDays,
-      absentDaysCount
     });
 
     const billData: BillData = {
       customer_name: customerName,
       customer_address: customerAddress,
       customer_contact: customerContact,
-      period_start: period_start as string,
-      period_end: period_end as string,
+      period_start,
+      period_end,
       deliveries,
       absent_days: absentDays,
       summary: {
@@ -205,8 +158,8 @@ export const generateBillData = async (
         total_delivered_days: deliveredDays,
         total_absent_days: absentDaysCount,
         average_rate: rateCount > 0 ? rateSum / rateCount : 0,
-        total_amount: totalAmount
-      }
+        total_amount: totalAmount,
+      },
     };
 
     res.status(200).json({
@@ -214,17 +167,13 @@ export const generateBillData = async (
       data: {
         bill: billData,
         user: {
-          name: user.fullname,
-          address: user.address
-        }
-      }
+          name: userResult.rows[0].fullname,
+          address: userResult.rows[0].address,
+        },
+      },
     } as ApiResponse);
-
   } catch (error) {
     console.error('Error in generateBillData:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error'
-    } as ApiResponse);
+    res.status(500).json({ success: false, error: 'Internal server error' } as ApiResponse);
   }
 };

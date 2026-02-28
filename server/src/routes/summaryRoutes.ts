@@ -1,20 +1,18 @@
 import { Router } from 'express';
-import { 
-  getMonthlySummary, 
+import {
+  getMonthlySummary,
   getAnalyticsReport,
-  updateMonthlyRate 
+  updateMonthlyRate,
 } from '../controllers/summaryController';
+import { requireAuth } from '../middleware/auth';
+import { validateMonthParam, validateMonthlyRateUpdate } from '../middleware/validator';
 
 const router = Router();
 
-// GET /api/summary/:username/:month - Get monthly summary
-// Example: /api/summary/john123/2025-10
-router.get('/:username/:month', getMonthlySummary);
+router.use(requireAuth);
 
-// GET /api/report/:username - Get analytics report with trends
-router.get('/:username', getAnalyticsReport);
-
-// PUT /api/summary/:username/:month/rate - Update monthly rate
-router.put('/:username/:month/rate', updateMonthlyRate);
+router.get('/report', getAnalyticsReport);
+router.get('/:month', validateMonthParam, getMonthlySummary);
+router.put('/:month/rate', validateMonthParam, validateMonthlyRateUpdate, updateMonthlyRate);
 
 export default router;

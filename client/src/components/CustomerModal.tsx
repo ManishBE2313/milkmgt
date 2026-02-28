@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useStore } from '@/store/useStore';
 import { customerApi } from '@/lib/api';
 import { Customer, CreateCustomerInput } from '@/types';
 
@@ -18,8 +17,6 @@ export default function CustomerModal({
   onSave,
   existingCustomer,
 }: CustomerModalProps) {
-  const user = useStore((state) => state.user);
-
   const [formData, setFormData] = useState<CreateCustomerInput>({
     name: '',
     address: '',
@@ -53,7 +50,6 @@ export default function CustomerModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
 
     // Validation
     if (!formData.name || formData.rate_per_litre <= 0) {
@@ -66,9 +62,9 @@ export default function CustomerModal({
 
     try {
       if (existingCustomer) {
-        await customerApi.updateCustomer(user.username, existingCustomer.id, formData);
+        await customerApi.updateCustomer(existingCustomer.id, formData);
       } else {
-        await customerApi.createCustomer(user.username, formData);
+        await customerApi.createCustomer(formData);
       }
       onSave();
     } catch (err: any) {
@@ -80,13 +76,13 @@ export default function CustomerModal({
   };
 
   const handleDelete = async () => {
-    if (!user || !existingCustomer) return;
+    if (!existingCustomer) return;
 
     setLoading(true);
     setError('');
 
     try {
-      await customerApi.deleteCustomer(user.username, existingCustomer.id);
+      await customerApi.deleteCustomer(existingCustomer.id);
       onSave();
     } catch (err: any) {
       setError(err.message || 'Failed to delete customer');

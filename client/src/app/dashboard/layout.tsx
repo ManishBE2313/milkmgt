@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { authCache } from '@/lib/authCache';
+import { setAuthToken } from '@/lib/api';
 
 export default function DashboardLayout({
   children,
@@ -12,29 +13,54 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const user = useStore((state) => state.user);
+  const token = useStore((state) => state.token);
+  const setUser = useStore((state) => state.setUser);
+  const setToken = useStore((state) => state.setToken);
   const resetState = useStore((state) => state.resetState);
   const [showLogoutMenu, setShowLogoutMenu] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    // Redirect to home if no user
-    if (!user) {
+    const bootstrapSession = async () => {
+      if (user) {
+        setCheckingSession(false);
+        return;
+      }
+
+      const session = await authCache.autoLogin();
+      if (session) {
+        setUser(session.user);
+        setToken(session.token);
+        setAuthToken(session.token);
+        setCheckingSession(false);
+        return;
+      }
+
+      setCheckingSession(false);
       router.push('/');
+    };
+
+    bootstrapSession();
+  }, [router, setToken, setUser, user]);
+
+  useEffect(() => {
+    if (token) {
+      setAuthToken(token);
     }
-  }, [user, router]);
+  }, [token]);
 
   const handleLogout = (forgetMe: boolean = false) => {
     resetState();
-    
-    // Clear remembered credentials if "Forget Me" is selected
+
     if (forgetMe) {
       authCache.clearCredentials();
     }
-    
+
     setShowLogoutMenu(false);
     router.push('/');
   };
 
-  if (!user) {
+  if (checkingSession || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="spinner"></div>
@@ -46,34 +72,31 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 
-                className="text-2xl font-bold text-primary-600 cursor-pointer hover:text-primary-700"
+      <header className="sticky top-0 z-20 px-4 pt-4 sm:px-6">
+        <div className="mx-auto max-w-7xl card !py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                className="text-left"
                 onClick={() => router.push('/dashboard')}
               >
-                🥛 Milk Manager Plus
-              </h1>
-              
-              {/* Customer Icon - NEW */}
+                <p className="text-xs uppercase tracking-[0.2em] text-primary-600">Milk Manager Plus</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  Operations Dashboard
+                </h1>
+              </button>
               <button
                 onClick={() => router.push('/dashboard/customers')}
-                className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-primary-100 dark:bg-primary-900 hover:bg-primary-200 dark:hover:bg-primary-800 transition-colors"
+                className="btn-secondary btn-sm hidden sm:inline-flex"
                 title="Manage Customers"
               >
-                <span className="text-xl">👥</span>
-                <span className="text-sm font-medium text-primary-700 dark:text-primary-300 hidden sm:inline">
-                  Customers
-                </span>
+                Customers
               </button>
             </div>
-            
-            <div className="flex items-center space-x-4 relative">
+
+            <div className="flex items-center space-x-3 relative">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                   {user.fullname}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -85,34 +108,33 @@ export default function DashboardLayout({
                   </p>
                 )}
               </div>
-              
+
               <div className="relative">
                 <button
                   onClick={() => setShowLogoutMenu(!showLogoutMenu)}
                   className="btn-secondary btn-sm"
                 >
-                  Logout ▼
+                  Sign Out
                 </button>
 
-                {/* Logout Dropdown Menu */}
                 {showLogoutMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                  <div className="absolute right-0 mt-2 w-60 card !p-2 z-30">
                     {authCache.hasCredentials() && (
-                      <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                        Auto-login is enabled
+                      <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                        Auto-login is currently enabled
                       </div>
                     )}
                     <button
                       onClick={() => handleLogout(false)}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-white/45 dark:hover:bg-white/10"
                     >
-                      🚪 Logout (Keep Auto-login)
+                      Sign out and keep auto-login
                     </button>
                     <button
                       onClick={() => handleLogout(true)}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="w-full text-left px-3 py-2 rounded-xl text-sm text-red-600 dark:text-red-400 hover:bg-white/45 dark:hover:bg-white/10"
                     >
-                      🔒 Logout & Forget Me
+                      Sign out and forget credentials
                     </button>
                   </div>
                 )}
@@ -122,7 +144,6 @@ export default function DashboardLayout({
         </div>
       </header>
 
-      {/* Click outside to close dropdown */}
       {showLogoutMenu && (
         <div
           className="fixed inset-0 z-10"
@@ -130,22 +151,18 @@ export default function DashboardLayout({
         ></div>
       )}
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {children}
-      </main>
+      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6">{children}</main>
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <p className="text-center text-sm text-gray-900 dark:text-gray-700">
-            Powered by Manish 
+      <footer className="px-4 pb-6 sm:px-6">
+        <div className="mx-auto max-w-7xl card !py-5">
+          <p className="text-center text-sm text-gray-700 dark:text-gray-300">
+            Powered by Manish
           </p>
-          <p className="text-center text-sm text-gray-500 dark:text-gray-500">
-            Email : singhmanish231301@gmail.com
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+            singhmanish231301@gmail.com
           </p>
-          <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-            © 2025 Milk Manager Plus. All rights reserved.
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+            Milk Manager Plus
           </p>
         </div>
       </footer>

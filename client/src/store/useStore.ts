@@ -5,7 +5,9 @@ import { User, Delivery, Customer, MonthlySummary } from '../types';
 interface AppState {
   // User state
   user: User | null;
+  token: string | null;
   setUser: (user: User | null) => void;
+  setToken: (token: string | null) => void;
 
   // Current month state
   currentMonth: string; // YYYY-MM format
@@ -50,6 +52,7 @@ export const useStore = create<AppState>()(
     (set) => ({
       // Initial state
       user: null,
+      token: null,
       currentMonth: getCurrentMonth(),
       customers: [],
       deliveries: [],
@@ -58,6 +61,7 @@ export const useStore = create<AppState>()(
 
       // User actions
       setUser: (user) => set({ user }),
+      setToken: (token) => set({ token }),
 
       // Month actions
       setCurrentMonth: (month) => set({ currentMonth: month }),
@@ -112,6 +116,7 @@ export const useStore = create<AppState>()(
       resetState: () =>
         set({
           user: null,
+          token: null,
           currentMonth: getCurrentMonth(),
           customers: [],
           deliveries: [],
@@ -122,7 +127,6 @@ export const useStore = create<AppState>()(
     {
       name: 'milk-manager-storage',
       partialize: (state) => ({
-        user: state.user,
         currentMonth: state.currentMonth,
       }),
     }

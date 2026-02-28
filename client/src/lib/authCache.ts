@@ -1,144 +1,92 @@
-import { userApi } from './api';
 import { User } from '../types';
+import { setAuthToken, userApi } from './api';
 
 const STORAGE_KEYS = {
-  USERNAME: 'rememberedUsername',
-  FULLNAME: 'rememberedFullname',
-  ADDRESS: 'rememberedAddress',
+  TOKEN: 'authToken',
+  USER: 'authUser',
   LAST_LOGIN: 'lastLoginTime',
 };
 
-interface SavedCredentials {
-  username: string;
-  fullname: string;
-  address: string;
-}
-
-/**
- * Auth Cache Manager - Handles credential caching and auto-login
- */
 export const authCache = {
-  /**
-   * Save user credentials to localStorage
-   */
-  saveCredentials(credentials: SavedCredentials): void {
+  saveSession(token: string, user: User): void {
     try {
-      localStorage.setItem(STORAGE_KEYS.USERNAME, credentials.username);
-      localStorage.setItem(STORAGE_KEYS.FULLNAME, credentials.fullname);
-      localStorage.setItem(STORAGE_KEYS.ADDRESS, credentials.address);
+      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       localStorage.setItem(STORAGE_KEYS.LAST_LOGIN, new Date().toISOString());
-      console.log('✅ Credentials saved to cache');
+      setAuthToken(token);
     } catch (error) {
-      console.error('Failed to save credentials:', error);
+      console.error('Failed to save auth session:', error);
     }
   },
 
-  /**
-   * Get saved credentials from localStorage
-   */
-  getSavedCredentials(): SavedCredentials | null {
+  getToken(): string | null {
     try {
-      const username = localStorage.getItem(STORAGE_KEYS.USERNAME);
-      const fullname = localStorage.getItem(STORAGE_KEYS.FULLNAME);
-      const address = localStorage.getItem(STORAGE_KEYS.ADDRESS);
-
-      if (username && fullname && address) {
-        return { username, fullname, address };
-      }
-      return null;
-    } catch (error) {
-      console.error('Failed to get saved credentials:', error);
+      return localStorage.getItem(STORAGE_KEYS.TOKEN);
+    } catch {
       return null;
     }
   },
 
-  /**
-   * Clear all saved credentials from localStorage
-   */
+  getSavedUser(): User | null {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.USER);
+      if (!raw) return null;
+      return JSON.parse(raw) as User;
+    } catch {
+      return null;
+    }
+  },
+
   clearCredentials(): void {
     try {
-      localStorage.removeItem(STORAGE_KEYS.USERNAME);
-      localStorage.removeItem(STORAGE_KEYS.FULLNAME);
-      localStorage.removeItem(STORAGE_KEYS.ADDRESS);
+      localStorage.removeItem(STORAGE_KEYS.TOKEN);
+      localStorage.removeItem(STORAGE_KEYS.USER);
       localStorage.removeItem(STORAGE_KEYS.LAST_LOGIN);
-      console.log('✅ Credentials cleared from cache');
+      setAuthToken(null);
     } catch (error) {
-      console.error('Failed to clear credentials:', error);
+      console.error('Failed to clear auth session:', error);
     }
   },
 
-  /**
-   * Check if credentials exist in cache
-   */
   hasCredentials(): boolean {
-    const credentials = this.getSavedCredentials();
-    return credentials !== null;
+    return Boolean(this.getToken());
   },
 
-  /**
-   * Get last login time
-   */
   getLastLoginTime(): Date | null {
     try {
       const lastLogin = localStorage.getItem(STORAGE_KEYS.LAST_LOGIN);
       return lastLogin ? new Date(lastLogin) : null;
-    } catch (error) {
+    } catch {
       return null;
     }
   },
 
-  /**
-   * Auto-login using cached credentials
-   * Returns user data if successful, null otherwise
-   */
-  async autoLogin(): Promise<User | null> {
-    const credentials = this.getSavedCredentials();
-    
-    if (!credentials) {
-      console.log('❌ No cached credentials found');
-      return null;
-    }
-
-    console.log('🔄 Attempting auto-login for:', credentials.username);
+  async autoLogin(): Promise<{ user: User; token: string } | null> {
+    const token = this.getToken();
+    if (!token) return null;
 
     try {
-      const user = await userApi.createOrGetUser(credentials);
-      
-      // Update last login time
+      setAuthToken(token);
+      const user = await userApi.getMe();
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       localStorage.setItem(STORAGE_KEYS.LAST_LOGIN, new Date().toISOString());
-      
-      console.log('✅ Auto-login successful:', user.username);
-      return user;
-    } catch (error) {
-      console.error('❌ Auto-login failed:', error);
-      
-      // Clear invalid credentials
+      return { user, token };
+    } catch {
       this.clearCredentials();
       return null;
     }
   },
 
-  /**
-   * Check if auto-login should be attempted
-   * (can add time-based expiry logic here)
-   */
   shouldAutoLogin(): boolean {
     const lastLogin = this.getLastLoginTime();
-    
-    if (!lastLogin) {
-      return this.hasCredentials();
-    }
+    if (!lastLogin) return this.hasCredentials();
 
-    // Optional: Add expiry logic (e.g., 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
     if (lastLogin < thirtyDaysAgo) {
-      console.log('⚠️ Credentials expired (30+ days old)');
       this.clearCredentials();
       return false;
     }
-
     return this.hasCredentials();
   },
 };

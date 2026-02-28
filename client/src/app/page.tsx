@@ -3,87 +3,91 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
-import { userApi } from '@/lib/api';
+import { authApi, setAuthToken } from '@/lib/api';
 import { authCache } from '@/lib/authCache';
+
+type AuthMode = 'login' | 'register';
 
 export default function HomePage() {
   const router = useRouter();
   const user = useStore((state) => state.user);
   const setUser = useStore((state) => state.setUser);
-  
+  const setToken = useStore((state) => state.setToken);
+
+  const [mode, setMode] = useState<AuthMode>('login');
   const [formData, setFormData] = useState({
     username: '',
     fullname: '',
     address: '',
+    password: '',
   });
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Auto-login on app start
   useEffect(() => {
     const performAutoLogin = async () => {
-      // Check if user already exists in Zustand store
       if (user) {
-        console.log('✅ User already logged in from store');
         router.push('/dashboard');
         return;
       }
 
-      // Attempt auto-login if credentials are cached
       if (authCache.shouldAutoLogin()) {
-        console.log('🔄 Starting auto-login...');
-        
-        const loggedInUser = await authCache.autoLogin();
-        
-        if (loggedInUser) {
-          setUser(loggedInUser);
+        const session = await authCache.autoLogin();
+        if (session) {
+          setUser(session.user);
+          setToken(session.token);
+          setAuthToken(session.token);
           router.push('/dashboard');
           return;
         }
       }
 
-      // No auto-login, load form with saved credentials if available
-      const savedCredentials = authCache.getSavedCredentials();
-      if (savedCredentials) {
-        setFormData(savedCredentials);
-        setRememberMe(true);
-      }
-      
       setCheckingAuth(false);
     };
 
     performAutoLogin();
-  }, [user, router, setUser]);
+  }, [router, setToken, setUser, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    // Validation
-    if (!formData.username || !formData.fullname || !formData.address) {
-      setError('All fields are required');
+
+    if (!formData.username || !formData.password) {
+      setError('Username and password are required');
+      return;
+    }
+    if (mode === 'register' && (!formData.fullname || !formData.address)) {
+      setError('Full name and address are required for registration');
       return;
     }
 
     setLoading(true);
-    
-    try {
-      const userData = await userApi.createOrGetUser(formData);
-      setUser(userData);
 
-      // Save or clear credentials based on "Remember Me" checkbox
+    try {
+      const authData =
+        mode === 'register'
+          ? await authApi.register(formData)
+          : await authApi.login({
+              username: formData.username,
+              password: formData.password,
+            });
+
+      setUser(authData.user);
+      setToken(authData.token);
+      setAuthToken(authData.token);
+
       if (rememberMe) {
-        authCache.saveCredentials(formData);
+        authCache.saveSession(authData.token, authData.user);
       } else {
         authCache.clearCredentials();
+        setAuthToken(authData.token);
       }
 
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Failed to enter app');
-      console.error('Error:', err);
+      setError(err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -96,13 +100,12 @@ export default function HomePage() {
     });
   };
 
-  // Show loading while checking authentication
   if (checkingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="spinner mx-auto" style={{ width: '3rem', height: '3rem' }}></div>
-          <p className="text-gray-600 dark:text-gray-400">🔍 Checking for saved credentials...</p>
+          <p className="text-gray-600 dark:text-gray-400">Checking saved session...</p>
           <p className="text-sm text-gray-500 dark:text-gray-500">Auto-login in progress</p>
         </div>
       </div>
@@ -110,112 +113,141 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="card max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-primary-600 mb-2">
-            🥛 Milk Manager Plus
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-8">
+      <div className="w-full max-w-md">
+        <div className="card mb-5 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary-600">
+            Milk Management Suite
+          </p>
+          <h1 className="mt-3 text-4xl font-bold text-gray-900 dark:text-gray-100">
+            {mode === 'login' ? 'Welcome Back' : 'Create Account'}
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Smart Milk Tracking & Billing System
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            {mode === 'login'
+              ? 'Sign in to manage deliveries, billing and analytics.'
+              : 'Register your account to start tracking milk operations.'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-2">
-              Username
-            </label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              className="input"
-              placeholder="Enter your username"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="fullname" className="block text-sm font-medium mb-2">
-              Full Name
-            </label>
-            <input
-              type="text"
-              id="fullname"
-              name="fullname"
-              value={formData.fullname}
-              onChange={handleChange}
-              className="input"
-              placeholder="Enter your full name"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="address" className="block text-sm font-medium mb-2">
-              Address
-            </label>
-            <textarea
-              id="address"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              className="input"
-              rows={3}
-              placeholder="Enter your address"
-              required
-            />
-          </div>
-
-          {/* Remember Me Checkbox */}
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="rememberMe"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-            <label
-              htmlFor="rememberMe"
-              className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300"
+        <div className="card">
+          <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-white/30 dark:bg-white/5 p-1">
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className={mode === 'login' ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
             >
-              Remember Me (Auto-login on next visit)
-            </label>
+              Login
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('register')}
+              className={mode === 'register' ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
+            >
+              Register
+            </button>
           </div>
 
-          {error && (
-            <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg text-sm">
-              {error}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium mb-2">
+                Username
+              </label>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                className="input"
+                placeholder="Enter your username"
+                required
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full btn-lg"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center">
-                <span className="spinner mr-2"></span>
-                Loading...
-              </span>
-            ) : (
-              'Enter App'
+            {mode === 'register' && (
+              <>
+                <div>
+                  <label htmlFor="fullname" className="block text-sm font-medium mb-2">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    id="fullname"
+                    name="fullname"
+                    value={formData.fullname}
+                    onChange={handleChange}
+                    className="input"
+                    placeholder="Enter your full name"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="address" className="block text-sm font-medium mb-2">
+                    Address
+                  </label>
+                  <textarea
+                    id="address"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="input"
+                    rows={3}
+                    placeholder="Enter your address"
+                    required
+                  />
+                </div>
+              </>
             )}
-          </button>
-        </form>
 
-        <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          <p>No signup required • Your data is private</p>
-          {authCache.hasCredentials() && (
-            <p className="mt-2 text-xs text-primary-600 dark:text-primary-400">
-              ✓ Credentials saved - Auto-login enabled
-            </p>
-          )}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className="input"
+                placeholder="Minimum 8 characters"
+                required
+              />
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label htmlFor="rememberMe" className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                Keep me signed in
+              </label>
+            </div>
+
+            {error && (
+              <div className="rounded-2xl bg-red-100/70 dark:bg-red-900/60 text-red-700 dark:text-red-200 px-4 py-3 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button type="submit" disabled={loading} className="btn-primary w-full btn-lg">
+              {loading ? (
+                <span className="flex items-center justify-center">
+                  <span className="spinner mr-2"></span>
+                  Processing...
+                </span>
+              ) : mode === 'login' ? (
+                'Login'
+              ) : (
+                'Create Account'
+              )}
+            </button>
+          </form>
         </div>
       </div>
     </div>

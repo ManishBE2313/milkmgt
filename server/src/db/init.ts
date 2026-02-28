@@ -12,6 +12,7 @@ export const createTables = async (): Promise<void> => {
         username VARCHAR(50) UNIQUE NOT NULL,
         fullname VARCHAR(100) NOT NULL,
         address TEXT NOT NULL,
+        password_hash VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -38,14 +39,14 @@ export const createTables = async (): Promise<void> => {
       CREATE TABLE IF NOT EXISTS deliveries (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
         delivery_date DATE NOT NULL,
         quantity DECIMAL(10, 2) DEFAULT 0,
         status VARCHAR(20) NOT NULL CHECK (status IN ('delivered', 'absent', 'mixed', 'no_entry')),
         month_year VARCHAR(7) NOT NULL,
         rate_per_litre DECIMAL(10, 2),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, delivery_date)
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
     console.log('✅ Deliveries table created/verified');
@@ -60,6 +61,9 @@ export const createTables = async (): Promise<void> => {
       
       CREATE INDEX IF NOT EXISTS idx_customers_user 
       ON customers(user_id);
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_deliveries_user_date_customer
+      ON deliveries(user_id, delivery_date, COALESCE(customer_id, 0));
     `);
     console.log('✅ Indexes created/verified');
 

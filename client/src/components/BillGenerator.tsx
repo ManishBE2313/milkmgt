@@ -32,7 +32,7 @@ export default function BillGenerator({ isOpen, onClose }: BillGeneratorProps) {
     const fetchCustomers = async () => {
       if (!user || customers.length > 0) return;
       try {
-        const data = await customerApi.getCustomers(user.username);
+        const data = await customerApi.getCustomers();
         setCustomers(data);
       } catch (err) {
         console.error('Error fetching customers:', err);
@@ -85,7 +85,6 @@ export default function BillGenerator({ isOpen, onClose }: BillGeneratorProps) {
 
     try {
       const data = await billApi.generateBillData(
-        user.username,
         selectedCustomer,
         startDate,
         endDate

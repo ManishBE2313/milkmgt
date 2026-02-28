@@ -1,9 +1,11 @@
 import express from 'express';
 import { generateBillData } from '../controllers/billController';
+import { requireAuth } from '../middleware/auth';
+import { validateBillQuery } from '../middleware/validator';
 
 const router = express.Router();
 
-// GET /api/bill/:username - Generate bill data
-router.get('/:username', generateBillData);
+router.use(requireAuth);
+router.get('/', validateBillQuery, generateBillData);
 
 export default router;

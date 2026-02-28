@@ -11,6 +11,17 @@ export interface CreateUserInput {
   username: string;
   fullname: string;
   address: string;
+  password: string;
+}
+
+export interface LoginInput {
+  username: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
 }
 
 // Customer related types (NEW)
@@ -44,6 +55,7 @@ export interface Delivery {
   id: number;
   user_id: number;
   customer_id: number | null;
+  customer_name?: string;
   delivery_date: string;
   quantity: number;
   status: DeliveryStatus;
@@ -95,6 +107,27 @@ export interface ExportData {
   deliveries: Delivery[];
   customers: Customer[];
   exported_at: string;
+}
+
+export interface CustomerDeliveryHistory {
+  customer_id: number;
+  customer_name: string;
+  period: string;
+  deliveries: Array<{
+    id: number;
+    date: string;
+    quantity: number;
+    rate: number;
+    amount: number;
+    status: string;
+  }>;
+  summary: {
+    total_litres: number;
+    total_delivered_days: number;
+    total_absent_days: number;
+    total_amount: number;
+    average_rate: number;
+  };
 }
 
 // API Response types

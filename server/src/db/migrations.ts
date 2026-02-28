@@ -2,40 +2,65 @@ import { pool } from './pool';
 
 export const runMigrations = async (): Promise<void> => {
   try {
-    console.log('🔄 Running database migrations...');
+    console.log('Running database migrations...');
 
-    // Check if customer_id column exists
-    const checkColumnQuery = `
-      SELECT column_name 
-      FROM information_schema.columns 
+    const customerColumn = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
       WHERE table_name='deliveries' AND column_name='customer_id';
-    `;
-    
-    const columnExists = await pool.query(checkColumnQuery);
+    `);
 
-    if (columnExists.rows.length === 0) {
-      console.log('⚙️ Adding customer_id column to deliveries table...');
-      
-      // Add customer_id column
+    if (customerColumn.rows.length === 0) {
       await pool.query(`
-        ALTER TABLE deliveries 
+        ALTER TABLE deliveries
         ADD COLUMN customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL;
       `);
-
-      // Create index for better performance
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_deliveries_customer 
-        ON deliveries(customer_id);
-      `);
-
-      console.log('✅ customer_id column added successfully');
-    } else {
-      console.log('✅ customer_id column already exists');
     }
 
-    console.log('🎉 Database migrations completed successfully!');
+    const passwordHashColumn = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name='users' AND column_name='password_hash';
+    `);
+
+    if (passwordHashColumn.rows.length === 0) {
+      await pool.query(`
+        ALTER TABLE users
+        ADD COLUMN password_hash VARCHAR(255);
+      `);
+    }
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_deliveries_customer
+      ON deliveries(customer_id);
+    `);
+
+    await pool.query(`
+      ALTER TABLE deliveries
+      DROP CONSTRAINT IF EXISTS deliveries_user_id_delivery_date;
+    `);
+
+    await pool.query(`
+      ALTER TABLE deliveries
+      DROP CONSTRAINT IF EXISTS deliveries_user_id_delivery_date_key;
+    `);
+
+    await pool.query(`
+      DROP INDEX IF EXISTS deliveries_user_id_delivery_date;
+    `);
+
+    await pool.query(`
+      DROP INDEX IF EXISTS deliveries_user_id_delivery_date_key;
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_deliveries_user_date_customer
+      ON deliveries(user_id, delivery_date, COALESCE(customer_id, 0));
+    `);
+
+    console.log('Database migrations completed successfully');
   } catch (error) {
-    console.error('❌ Error running migrations:', error);
+    console.error('Error running migrations:', error);
     throw error;
   }
 };

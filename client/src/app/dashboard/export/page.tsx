@@ -20,7 +20,7 @@ export default function ExportPage() {
     setSuccess('');
 
     try {
-      const data = await exportApi.exportAsJSON(user.username);
+      const data = await exportApi.exportAsJSON();
       const filename = `milk-data-${user.username}-${new Date().toISOString().split('T')[0]}.json`;
       downloadJSON(data, filename);
       setSuccess(`Data exported successfully! Includes ${data.deliveries.length} deliveries and ${data.customers.length} customers.`);
@@ -40,7 +40,7 @@ export default function ExportPage() {
     setSuccess('');
 
     try {
-      const blob = await exportApi.exportAsCSV(user.username);
+      const blob = await exportApi.exportAsCSV();
       const filename = `milk-data-${user.username}-${new Date().toISOString().split('T')[0]}.csv`;
       downloadFile(blob, filename);
       setSuccess('Data exported successfully as CSV!');
@@ -79,7 +79,7 @@ export default function ExportPage() {
         throw new Error('Invalid file format. Expected { deliveries: [], customers: [] }');
       }
 
-      const result = await exportApi.importFromJSON(user.username, {
+      const result = await exportApi.importFromJSON({
         deliveries: data.deliveries,
         customers: data.customers || [],
       });

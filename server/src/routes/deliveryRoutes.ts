@@ -1,20 +1,22 @@
 import { Router } from 'express';
-import { 
-  getDeliveriesByUsername, 
-  createOrUpdateDelivery, 
-  deleteDelivery 
+import {
+  getDeliveries,
+  createOrUpdateDelivery,
+  deleteDelivery,
 } from '../controllers/deliveryController';
+import { requireAuth } from '../middleware/auth';
+import {
+  validateDeliveryInput,
+  validateIdParam,
+  validateMonthQuery,
+} from '../middleware/validator';
 
 const router = Router();
 
-// GET /api/deliveries/:username - Get all deliveries for a user
-// Query params: ?month_year=YYYY-MM (optional)
-router.get('/:username', getDeliveriesByUsername);
+router.use(requireAuth);
 
-// POST /api/deliveries/:username - Create or update delivery entry
-router.post('/:username', createOrUpdateDelivery);
-
-// DELETE /api/deliveries/:username/:date - Delete a delivery entry
-router.delete('/:username/:date', deleteDelivery);
+router.get('/', validateMonthQuery, getDeliveries);
+router.post('/', validateDeliveryInput, createOrUpdateDelivery);
+router.delete('/:id', validateIdParam, deleteDelivery);
 
 export default router;

@@ -8,8 +8,12 @@ import Calendar from '@/components/Calendar';
 import MonthlySummary from '@/components/MonthlySummary';
 import DeliveryModal from '@/components/DeliveryModal';
 import BillGenerator from '@/components/BillGenerator';
-import { Delivery } from '@/types';
-import { getCurrentMonthYear, getMonthName, getPreviousMonth, getNextMonth } from '@/utils/dateUtils';
+import {
+  getCurrentMonthYear,
+  getMonthName,
+  getPreviousMonth,
+  getNextMonth,
+} from '@/utils/dateUtils';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -29,36 +33,25 @@ export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
 
-  // Fetch deliveries, summary, and customers
   const fetchData = async () => {
     if (!user) return;
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
-      // Fetch customers if not loaded
       if (customers.length === 0) {
-        const customersData = await customerApi.getCustomers(user.username);
+        const customersData = await customerApi.getCustomers();
         setCustomers(customersData);
       }
 
-      // Fetch deliveries for current month
-      const deliveriesData = await deliveryApi.getDeliveries(
-        user.username,
-        currentMonth
-      );
+      const deliveriesData = await deliveryApi.getDeliveries(currentMonth);
       setDeliveries(deliveriesData);
 
-      // Fetch monthly summary
-      const summaryData = await summaryApi.getMonthlySummary(
-        user.username,
-        currentMonth
-      );
+      const summaryData = await summaryApi.getMonthlySummary(currentMonth);
       setMonthlySummary(summaryData);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch data');
-      console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
     }
@@ -68,20 +61,17 @@ export default function DashboardPage() {
     fetchData();
   }, [currentMonth, user]);
 
-  const handlePreviousMonth = () => {
-    setCurrentMonth(getPreviousMonth(currentMonth));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentMonth(getNextMonth(currentMonth));
-  };
-
-  const handleToday = () => {
-    setCurrentMonth(getCurrentMonthYear());
-  };
+  const handlePreviousMonth = () => setCurrentMonth(getPreviousMonth(currentMonth));
+  const handleNextMonth = () => setCurrentMonth(getNextMonth(currentMonth));
+  const handleToday = () => setCurrentMonth(getCurrentMonthYear());
 
   const handleDateClick = (dateString: string) => {
     setSelectedDate(dateString);
+    setIsModalOpen(true);
+  };
+
+  const handleQuickAdd = () => {
+    setSelectedDate(null);
     setIsModalOpen(true);
   };
 
@@ -91,12 +81,8 @@ export default function DashboardPage() {
   };
 
   const handleDeliverySaved = () => {
-    fetchData(); // Refresh data after save
+    fetchData();
     handleModalClose();
-  };
-
-  const handleBillModalClose = () => {
-    setIsBillModalOpen(false);
   };
 
   if (loading && deliveries.length === 0) {
@@ -109,52 +95,43 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Month Navigation */}
       <div className="card">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {getMonthName(currentMonth)}
-          </h2>
-          
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-primary-600">Current Period</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              {getMonthName(currentMonth)}
+            </h2>
+          </div>
+
           <div className="flex items-center space-x-2">
-            <button
-              onClick={handlePreviousMonth}
-              className="btn-secondary btn-sm"
-            >
-              ← Previous
+            <button onClick={handlePreviousMonth} className="btn-secondary btn-sm">
+              Previous
             </button>
-            
-            <button
-              onClick={handleToday}
-              className="btn-primary btn-sm"
-            >
-              Today
+
+            <button onClick={handleToday} className="btn-primary btn-sm">
+              Current
             </button>
-            
-            <button
-              onClick={handleNextMonth}
-              className="btn-secondary btn-sm"
-            >
-              Next →
+
+            <button onClick={handleNextMonth} className="btn-secondary btn-sm">
+              Next
             </button>
           </div>
         </div>
       </div>
 
-      {/* Error Message */}
       {error && (
-        <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg">
+        <div className="rounded-2xl bg-red-100/70 dark:bg-red-900/60 text-red-700 dark:text-red-200 px-4 py-3">
           {error}
         </div>
       )}
 
-      {/* Customer Quick Info */}
       {customers.length > 0 && (
-        <div className="card bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900 dark:to-pink-900">
+        <div className="card">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                👥 Active Customers
+                Active Customers
               </h3>
               <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {customers.length} Customer{customers.length !== 1 ? 's' : ''}
@@ -164,72 +141,65 @@ export default function DashboardPage() {
               onClick={() => router.push('/dashboard/customers')}
               className="btn-secondary btn-sm"
             >
-              Manage →
+              Manage
             </button>
           </div>
         </div>
       )}
 
-      {/* Monthly Summary */}
-      <MonthlySummary summary={monthlySummary} loading={loading} />
+      <MonthlySummary summary={monthlySummary} loading={loading} onRateUpdated={fetchData} />
 
-      {/* Calendar */}
       <Calendar
         monthYear={currentMonth}
         deliveries={deliveries}
         onDateClick={handleDateClick}
+        onQuickAdd={handleQuickAdd}
       />
 
-      {/* Quick Actions */}
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">⚡ Quick Actions</h3>
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
+          Quick Actions
+        </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <button
             onClick={() => {
-              setSelectedDate(null);
-              setIsModalOpen(true);
+              handleQuickAdd();
             }}
-            className="btn-primary flex items-center justify-center"
+            className="btn-primary"
           >
-            <span className="mr-2">➕</span>
             Add Delivery
           </button>
-          
+
           <button
             onClick={() => setIsBillModalOpen(true)}
-            className="btn-primary flex items-center justify-center bg-green-600 hover:bg-green-700"
+            className="btn-primary"
           >
-            <span className="mr-2">💵</span>
             Generate Bill
           </button>
-          
+
           <button
             onClick={() => router.push('/dashboard/customers')}
-            className="btn-secondary flex items-center justify-center"
+            className="btn-secondary"
           >
-            <span className="mr-2">👥</span>
             Customers
           </button>
-          
+
           <button
             onClick={() => router.push('/dashboard/analytics')}
-            className="btn-secondary flex items-center justify-center"
+            className="btn-secondary"
           >
-            <span className="mr-2">📊</span>
             Analytics
           </button>
-          
+
           <button
             onClick={() => router.push('/dashboard/export')}
-            className="btn-secondary flex items-center justify-center"
+            className="btn-secondary"
           >
-            <span className="mr-2">💾</span>
             Export Data
           </button>
         </div>
       </div>
 
-      {/* Delivery Modal */}
       {isModalOpen && (
         <DeliveryModal
           isOpen={isModalOpen}
@@ -238,17 +208,21 @@ export default function DashboardPage() {
           selectedDate={selectedDate}
           existingDelivery={
             selectedDate
-              ? deliveries.find((d) => d.delivery_date === selectedDate)
+              ? (() => {
+                  const dayDeliveries = deliveries.filter(
+                    (d) => d.delivery_date === selectedDate
+                  );
+                  return dayDeliveries.length === 1 ? dayDeliveries[0] : undefined;
+                })()
               : undefined
           }
         />
       )}
 
-      {/* Bill Generator Modal */}
       {isBillModalOpen && (
         <BillGenerator
           isOpen={isBillModalOpen}
-          onClose={handleBillModalClose}
+          onClose={() => setIsBillModalOpen(false)}
         />
       )}
     </div>

@@ -1,27 +1,32 @@
 import express from 'express';
 import {
-  getCustomersByUsername,
+  getCustomers,
   createCustomer,
   updateCustomer,
   deleteCustomer,
 } from '../controllers/customerController';
 import { getCustomerDeliveryHistory } from '../controllers/customerDeliveryController';
+import { requireAuth } from '../middleware/auth';
+import {
+  validateCustomerCreate,
+  validateCustomerIdParam,
+  validateCustomerUpdate,
+  validateMonthQuery,
+} from '../middleware/validator';
 
 const router = express.Router();
 
-// GET /api/customers/:username - Get all customers for user
-router.get('/:username', getCustomersByUsername);
+router.use(requireAuth);
 
-// POST /api/customers/:username - Create new customer
-router.post('/:username', createCustomer);
-
-// PUT /api/customers/:username/:customerId - Update customer
-router.put('/:username/:customerId', updateCustomer);
-
-// DELETE /api/customers/:username/:customerId - Delete customer
-router.delete('/:username/:customerId', deleteCustomer);
-
-// GET /api/customers/:username/:customerId/history - Get customer delivery history
-router.get('/:username/:customerId/history', getCustomerDeliveryHistory);
+router.get('/', getCustomers);
+router.post('/', validateCustomerCreate, createCustomer);
+router.put('/:customerId', validateCustomerIdParam, validateCustomerUpdate, updateCustomer);
+router.delete('/:customerId', validateCustomerIdParam, deleteCustomer);
+router.get(
+  '/:customerId/history',
+  validateCustomerIdParam,
+  validateMonthQuery,
+  getCustomerDeliveryHistory
+);
 
 export default router;
